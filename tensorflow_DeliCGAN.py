@@ -157,7 +157,7 @@ z = tf.placeholder(tf.float32, [batch_size ,1, 1, z_dim], name="z")   # z为30�
 zmu = tf.get_variable("generator_zmu", [batch_size,1 ,1 , z_dim],initializer=tf.random_uniform_initializer(-1,1))   # zin  生成均匀分布的 μ
 zsig = tf.get_variable("generator_sig", [batch_size,1 ,1 , z_dim],initializer=tf.constant_initializer(0.2))       # 生成0.2的张量  相当于σ = 0.2
 zinp = tf.add(zmu,tf.multiply(z,zsig))  # 这里相当于  zinp = μ + σ * z
-# zinp = z     				# Uncomment this line when training/testing baseline GAN
+zinp = z     				# Uncomment this line when training/testing baseline GAN
 
 # networks : generator
 G_z = generator(zinp, y_label, isTrain)  

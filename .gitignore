@@ -1,3 +1,5 @@
 MNIST_cDCGAN_results
 MNIST_data
 mnist/__pycache__
+results
+datasets/mnist/mnist.npz
