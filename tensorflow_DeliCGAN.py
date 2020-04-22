@@ -4,11 +4,31 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
+batch_size = 100
+
 # leaky_relu
 def lrelu(X, leak=0.2):
     f1 = 0.5 * (1 + leak)
     f2 = 0.5 * (1 - leak)
     return f1 * X + f2 * tf.abs(X)
+
+# 小批量判别器  用于解决模式崩溃的问题   直接计算批量样本的统计特征
+def Minibatch_Discriminator(input, num_kernels=100, dim_per_kernel=5, init=False, name='MD'):
+    num_inputs=16*4
+    theta = tf.get_variable(name+"/theta",[num_inputs, num_kernels, dim_per_kernel], initializer=tf.random_normal_initializer(stddev=0.05))
+    log_weight_scale = tf.get_variable(name+"/lws",[num_kernels, dim_per_kernel], initializer=tf.constant_initializer(0.0))
+    W = tf.multiply(theta, tf.expand_dims(tf.exp(log_weight_scale)/tf.sqrt(tf.reduce_sum(tf.square(theta),0)),0))
+    W = tf.reshape(W,[-1,num_kernels*dim_per_kernel])
+    x = input
+    x=tf.reshape(x, [batch_size,num_inputs])
+    activation = tf.matmul(x, W)
+    activation = tf.reshape(activation,[-1,num_kernels,dim_per_kernel])
+    abs_dif = tf.multiply(tf.reduce_sum(tf.abs(tf.subtract(tf.expand_dims(activation,3),tf.expand_dims(tf.transpose(activation,[1,2,0]),0))),2),
+                                                1-tf.expand_dims(tf.constant(np.eye(batch_size),dtype=np.float32),1))
+    f = tf.reduce_sum(tf.exp(-abs_dif),2)/tf.reduce_sum(tf.exp(-abs_dif))
+    print((f.get_shape()))
+    print((input.get_shape()))
+    return tf.concat(axis=1,values=[x, f])
 
 # G(z)  x : ? 1 1 100  y : ? 1 1 10
 def generator(x, y_label, isTrain=True, reuse=False):
@@ -22,14 +42,17 @@ def generator(x, y_label, isTrain=True, reuse=False):
         # cat1 -> ? 1 1 110
         cat1 = tf.concat([x, y_label], 3)  
 
+        # ? 4 4 64
+        fc1 = tf.reshape(tf.layers.dense(cat1, 1152, kernel_initializer=w_init), [-1, 3, 3, 128])
+
         # 1st hidden layer 
-        # decov1: ? 7 7 256
-        deconv1 = tf.layers.conv2d_transpose(cat1, 256, [7, 7], strides=(1, 1), padding='valid', kernel_initializer=w_init, bias_initializer=b_init)
+        # decov1: ? 7 7 32
+        deconv1 = tf.layers.conv2d_transpose(fc1, 32, [3, 3], strides=(2, 2), padding='valid', kernel_initializer=w_init, bias_initializer=b_init)
         lrelu1 = lrelu(tf.layers.batch_normalization(deconv1, training=isTrain), 0.2)
 
         # 2nd hidden layer
-        # ? 14 14 128
-        deconv2 = tf.layers.conv2d_transpose(lrelu1, 128, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        # ? 14 14 16
+        deconv2 = tf.layers.conv2d_transpose(lrelu1, 16, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
         lrelu2 = lrelu(tf.layers.batch_normalization(deconv2, training=isTrain), 0.2)
 
         # output layer
@@ -50,21 +73,30 @@ def discriminator(x, y_fill, isTrain=True, reuse=False):
         cat1 = tf.concat([x, y_fill], 3)
 
         # 1st hidden layer
-        # 14 14 128
-        conv1 = tf.layers.conv2d(cat1, 128, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        # 14 14 16
+        conv1 = tf.layers.conv2d(cat1, 16, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
         lrelu1 = lrelu(conv1, 0.2)
 
         # 2nd hidden layer
-        # 7 7 256
-        conv2 = tf.layers.conv2d(lrelu1, 256, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        # 7 7 32
+        conv2 = tf.layers.conv2d(lrelu1, 32, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
         lrelu2 = lrelu(tf.layers.batch_normalization(conv2, training=isTrain), 0.2)
 
+        # 3nd hidden layer
+        # 4 4 64
+        conv3 = tf.layers.conv2d(lrelu2, 64, [3, 3], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        lrelu3 = lrelu(tf.layers.batch_normalization(conv3, training=isTrain), 0.2)
+
+        h4 = tf.layers.max_pooling2d(lrelu3, [4, 4], [1, 1])
+
+        h5 = Minibatch_Discriminator(h4, 128, name='discriminator_MD')
+
+        h6 = tf.reshape(tf.layers.dense(h5, 1),[-1, 1, 1, 1])
         # output layer
         # 1 1 1
-        conv3 = tf.layers.conv2d(lrelu2, 1, [7, 7], strides=(1, 1), padding='valid', kernel_initializer=w_init)
-        o = tf.nn.sigmoid(conv3)
+        o = tf.nn.sigmoid(h6)
 
-        return o, conv3
+        return o, h6
 
 # preprocess  预处理   先随机生成10组数据  用这10组数据来产生图像查看训练过程
 img_size = 28
@@ -132,7 +164,6 @@ def show_train_hist(hist, show = False, save = False, path = 'Train_hist.png'):
 ###################################################  反向传播部分  ###################################################
 
 # training parameters
-batch_size = 100
 learningrate = 0.0002
 train_epoch = 30
 global_step = tf.Variable(0, trainable=False)  # 记录全局的步数
