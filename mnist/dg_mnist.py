@@ -11,6 +11,7 @@ import time
 from random import randint
 import cv2
 import matplotlib.pylab as Plot
+import matplotlib.pyplot as plt
 import tsne
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib
@@ -43,12 +44,11 @@ def Minibatch_Discriminator(input, num_kernels=100, dim_per_kernel=5, init=False
 
 # 两矩阵相乘  x*w + b
 def linear(x,output_dim, name="linear"):
-
     w=tf.get_variable(name+"/w", [x.get_shape()[1], output_dim])
     b=tf.get_variable(name+"/b", [output_dim], initializer=tf.constant_initializer(0.0))
     return tf.matmul(x,w)+b
 
-# fc就是全连接层
+# fc 全连接层
 def fc_batch_norm(x, n_out, phase_train, name='bn'):
         beta = tf.get_variable(name + '/fc_beta', shape=[n_out], initializer=tf.constant_initializer())
         gamma = tf.get_variable(name + '/fc_gamma', shape=[n_out], initializer=tf.random_normal_initializer(1., 0.02))
@@ -90,13 +90,21 @@ def convt(x, outputShape, Wx=3, Wy=3, stridex=1, stridey=1, padding='SAME', tran
     convt = tf.nn.conv2d_transpose(x, w, output_shape=outputShape, strides=[1,stridex,stridey,1], padding=padding) +b
     return convt
 
-# 判别器  
-def discriminator(image, Reuse=False):
+# 判别器  y_lable 为改好的 ? 10
+def discriminator(image, y_label, Reuse=False):
     with tf.variable_scope('disc', reuse=Reuse):
+        # image : ? 784
         image = tf.reshape(image, [-1, 28, 28, 1])
-        # 第一层 5*5 步长为2 的卷积层  生成8（df_dim 16？）个特征 
+        # 把 y 格式化为标签
+        y_label = tf.reshape(y_label,  [batchsize, 1, 1, 10])
+        y_fill = y_label * np.ones([batchsize, image_size, image_size, 10])
+        # 拼在最后一个维度
+        # cat0 ? 28 28 11
+        cat0 = tf.concat([image, y_fill], 3)
+
+        # 第一层 5*5 步长为2 的卷积层  生成8（df_dim 16？）个特征   应该不够 
         # 维度 50 14 14 16
-        h0 = lrelu(conv(image, 5, 5, 1, df_dim, stridex=2, stridey=2, name='d_h0_conv')) 
+        h0 = lrelu(conv(cat0, 5, 5, 10+1, df_dim, stridex=2, stridey=2, name='d_h0_conv')) 
         # 第二层 5*5 步长2  卷积层  生成16（32 df_dim*2）个特征  
         # batch_norm 用于在深度神经网络训练过程中使得每一层神经网络的输入保持相同分布
         # 维度 50 7 7 32
@@ -118,11 +126,15 @@ def discriminator(image, Reuse=False):
         return tf.nn.sigmoid(h8), h8   # D_prob, D_logit
 
 # 生成器
-def generator(z):
+def generator(z, y_lable):
     with tf.variable_scope('gen'):
+        # y 变形
+        # y = y_lable * np.ones([batchsize, 1, 1, 10])
+        cat0 = tf.concat([z, y_lable], 1)   # 在第三个维度拼接
+
         # 第一层  FC 全连接
         # 维度 ？ 4 4 64
-        h0 = tf.reshape(tf.nn.relu(fc_batch_norm(linear(z, gf_dim*4*4*4, name='g_h0'), gf_dim*4*4*4, phase_train, 'g_bn0')), [-1, 4, 4, gf_dim*4])
+        h0 = tf.reshape(tf.nn.relu(fc_batch_norm(linear(cat0, gf_dim*4*4*4, name='g_h0'), gf_dim*4*4*4, phase_train, 'g_bn0')), [-1, 4, 4, gf_dim*4])
         # 第二层 卷积  3*3 32 
         # 维度 50 7 7 32
         h1 = tf.nn.relu(global_batch_norm(convt(h0,[batchsize, 7, 7, gf_dim*2],3, 3, 2, 2, name='g_h1'), gf_dim*2, phase_train, 'g_bn1'))
@@ -140,15 +152,17 @@ gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.7)
 with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
     batchsize = 50        # 每个batch中训练样本的数量
     imageshape = [28*28]
-    z_dim = 30   # dim == dimension
-    gf_dim = 16  # 特征层大小
-    df_dim = 16  # 特征层大小
+    image_size = 28
+    z_dim = 100   # dim == dimension
+    gf_dim = 32  # 特征层大小
+    df_dim = 32  # 特征层大小
     learningrate = 0.0005
     beta1 = 0.5
 
     images = tf.placeholder(tf.float32, [batchsize] + imageshape, name="real_images")
     z = tf.placeholder(tf.float32, [None, z_dim], name="z")   # z为30维的数据
-    lr1 = tf.placeholder(tf.float32, name="lr") # ？
+    lr1 = tf.placeholder(tf.float32, name="lr") # 学习率占位
+    y_label = tf.placeholder(tf.float32, shape=(None, 10))     # 标签
 
 ################   DeliGAN    ########################
 
@@ -156,13 +170,14 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
     zin = tf.get_variable("g_z", [batchsize, z_dim],initializer=tf.random_uniform_initializer(-1,1))  # zin  生成均匀分布的 μ
     zsig = tf.get_variable("g_sig", [batchsize, z_dim],initializer=tf.constant_initializer(0.2)) # 生成0.2的张量  相当于σ = 0.2
     inp = tf.add(zin,tf.multiply(z,zsig))  # 这里相当于  zinp = μ + σ * z
-    inp = z     				# Uncomment this line when training/testing baseline GAN
-
-    G = generator(inp)
-    D_prob, D_logit = discriminator(images)  # 训练真实图片
-    D_fake_prob, D_fake_logit = discriminator(G, Reuse=True) # 训练生成器图片
+    # inp = z     				# Uncomment this line when training/testing baseline GAN
 
 ################   DeliGAN    ########################
+
+    G = generator(inp, y_label)
+    D_prob, D_logit = discriminator(images, y_label)  # 训练真实图片
+    D_fake_prob, D_fake_logit = discriminator(G, y_label, Reuse=True) # 训练生成器图片
+
 
 
 # tf.reduce_mean 函数用于计算张量tensor沿着指定的数轴（tensor的某一维度）上的的平均值
@@ -187,14 +202,22 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
     trainy = np.concatenate([data['trainTargs']], axis=0) # tags
     trainx = 2*trainx/255.-1  # 标椎化？
 
+    #  截取数据
     data = []
+    data_label = []
+    data_size = 500
     # Uniformly sampling 50 images per category from the dataset  从数据集中为每个类别统一采样50张图像
     for i in range(10):
         train = trainx[np.argmax(trainy,1)==i]
-        # print(i)
-        data.append(train[-500:])
-    data = np.array(data)
-    data = np.reshape(data,[-1,28*28])
+        label = trainy[np.argmax(trainy,1)==i]
+        # print(np.argmax(trainy,1)==i)
+        data.append(train[-data_size:])
+        data_label.append(label[-data_size:])
+
+    data = np.array(data).reshape([-1, image_size*image_size])
+    data_label = np.array(data_label).reshape([-1, 10])
+    # data = np.reshape(data,[-1,28*28])
+    # data_label = np.reshape(data_label,[-1,10])
 
     # 训练  此函数是Adam优化算法：是一个寻找全局最优点的优化算法，引入了二次方梯度校正。  beta1 一阶矩估计的指数衰减率  类似于梯度下降法
     d_optim = tf.train.AdamOptimizer(lr1, beta1=beta1).minimize(dloss, var_list=d_vars)
@@ -204,9 +227,18 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
 
     saver = tf.train.Saver(max_to_keep=10)
 
+    onehot = np.eye(10)
+    # 生成0-9的标签
+    fixed_y = np.zeros((5, 1))
+    for i in range(9):
+        temp = np.ones((5, 1)) + i
+        fixed_y = np.concatenate([fixed_y, temp], 0)  # 0 1 2 ...
+    fixed_y = onehot[fixed_y.astype(np.int32)].reshape((batchsize, 10))
+
+
     counter = 1
     start_time = time.time()
-    data_size = data.shape[0]  # 只取样了500张图片用于训练
+    data_size = data.shape[0]  # 只取样了50*10 张图片用于训练
     display_z = np.random.uniform(-1.0, 1.0, [batchsize, z_dim]).astype(np.float32)   # 均匀分布
 
     seed = 1
@@ -222,33 +254,40 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         # training a model
         for epoch in range(4000):
             batch_idx = data_size//batchsize  # 训练轮数
-            batch = data[rng.permutation(data_size)]
+            radoms = rng.permutation(data_size)
+            radom_data = data[radoms]
+            radom_labels = data_label[radoms]
             lr = learningrate * (np.minimum((4 - epoch/1000.), 3.)/3)  # 学习率衰减
 
             # 单批次训练
             for idx in range(batch_idx):
-                batch_images = batch[idx*batchsize:(idx+1)*batchsize]  # 单批次训练的图像
+                batch_images = radom_data[idx*batchsize:(idx+1)*batchsize]  # 单批次训练的图像
+                batch_labels = radom_labels[idx*batchsize:(idx+1)*batchsize] 
+
                 # uniform 从一个均匀分布[low,high)中随机采样，注意定义域是左闭右开，即包含low，不包含high.
                 # batch_z = np.random.uniform(-1.0, 1.0, [batchsize, z_dim]).astype(np.float32) # z是一个（50, 30) 的元组  uniform 是均匀分布  意义？？
 
-                # 用来平衡D和G？？
+                # 用来平衡D和G   作者的方法
                 if count1>3:
                     thres=min(thres+0.003, 1.0)
                     count1=0
-                    # print(("[%2d] gen, %f" % (counter, thres)))
+                    print(("[%2d] gen, %f" % (counter, thres)))
                 if count2<-1:
                     thres=max(thres-0.003, t1)
                     count2=0
-                    # print(("[%2d] disc, %f" % (counter, thres)))
+                    print(("[%2d] disc, %f" % (counter, thres)))
 
                 for k in range(5):  # 每一次betch 有50
                     batch_z = np.random.normal(0, 1.0, [batchsize, z_dim]).astype(np.float32)  # 产生正态分布
-                    if gloss.eval({z: batch_z, phase_train.name:False})>thres:    # 在SESSION中评估次张量   这个就是gloss的值
-                        sess.run([g_optim],feed_dict={z: batch_z, lr1:lr, phase_train.name:True})   # 训练G
+                    y_ = np.random.randint(0, 9, (batchsize, 1))  # 随机生成label 
+                    y_random = onehot[y_.astype(np.int32)].reshape([batchsize, 10])
+                    # 当 gloss > thres 时训练G  
+                    if gloss.eval({z: batch_z, y_label:y_random, phase_train.name:False})>thres:    # 在SESSION中评估次张量   这个就是gloss的值
+                        sess.run([g_optim],feed_dict={z: batch_z, y_label:y_random , lr1:lr, phase_train.name:True})   # 训练G
                         count1+=1
                         count2=0
                     else:
-                        sess.run([d_optim],feed_dict={ images: batch_images, z: batch_z, lr1:lr, phase_train.name:True})  # 训练D   先训练D
+                        sess.run([d_optim],feed_dict={ images: batch_images, y_label:batch_labels, z: batch_z, lr1:lr, phase_train.name:True})  # 训练D   先训练D
                         count2-=1
                         count1=0
                 counter += 1
@@ -256,14 +295,15 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
                 if counter % 300 == 0:
                     # Saving 49 randomly generated samples
                     print(("Epoch: [%2d] [%4d/%4d] time: %4.4f, "  % (epoch, idx, batch_idx, time.time() - start_time,)))
-                    sdata = sess.run(G,feed_dict={ z: batch_z, phase_train.name:False})
+                    
+                    sdata = sess.run(G,feed_dict={ z: batch_z, y_label:fixed_y, phase_train.name:False})
                     sdata = sdata.reshape(sdata.shape[0], 28, 28, 1)/2.+0.5
-                    sdata = merge(sdata[:49],[7,7])
+                    sdata = merge(sdata[:],[10,5])  # 变为5*10
                     sdata = np.array(sdata*255.,dtype=np.int) # 回复图片数据
                     cv2.imwrite(results_dir + "/" + str(counter) + ".png", sdata)
-                    errD_fake = d_loss_fake.eval({z: display_z, phase_train.name:False})  
-                    errD_real = d_loss_real.eval({images: batch_images, phase_train.name:False})
-                    errG = gloss.eval({z: display_z, phase_train.name:False})
+                    errD_fake = d_loss_fake.eval({z: display_z, y_label:fixed_y, phase_train.name:False})  
+                    errD_real = d_loss_real.eval({images: batch_images, y_label:fixed_y, phase_train.name:False})
+                    errG = gloss.eval({z: display_z, y_label:fixed_y, phase_train.name:False})
                     sigloss = sigma_loss.eval()
                     print(('D_real: ', errD_real))
                     print(('D_fake: ', errD_fake))
@@ -271,7 +311,7 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
                     print(('sigloss: ', sigloss))
                 if counter % 2000 == 0:
                     # Calculating the Nearest Neighbours corresponding to the generated samples  计算与生成的样本相对应的最近邻居
-                    sdata = sess.run(G,feed_dict={ z: display_z, phase_train.name:False})  # 相当于是用均匀分布来产生图片 ？
+                    sdata = sess.run(G,feed_dict={ z: display_z, y_label:fixed_y, phase_train.name:False})  # 相当于是用均匀分布来产生图片 ？
                     sdata = sdata.reshape(sdata.shape[0], 28*28)
                     NNdiff = np.sum(np.square(np.expand_dims(sdata,axis=1) - np.expand_dims(data,axis=0)),axis=2)  # 找不同
                     NN = data[np.argmin(NNdiff,axis=1)]  # 找到最相似的
@@ -285,7 +325,7 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
 
                     # Plotting the latent space using tsne
                     z_Mog = zin.eval()#display_z
-                    gen = G.eval({z:display_z,  phase_train.name:False})
+                    gen = G.eval({z:display_z, y_label:fixed_y,  phase_train.name:False})
                     Y = tsne.tsne(z_Mog, 2, z_dim, 10.0) #  数据降维 
                     Plot.scatter(Y[:,0], Y[:,1])
                     xtrain = gen.copy()

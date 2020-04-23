@@ -14,7 +14,7 @@ def lrelu(X, leak=0.2):
 
 # 小批量判别器  用于解决模式崩溃的问题   直接计算批量样本的统计特征
 def Minibatch_Discriminator(input, num_kernels=100, dim_per_kernel=5, init=False, name='MD'):
-    num_inputs=16*4
+    num_inputs=256
     theta = tf.get_variable(name+"/theta",[num_inputs, num_kernels, dim_per_kernel], initializer=tf.random_normal_initializer(stddev=0.05))
     log_weight_scale = tf.get_variable(name+"/lws",[num_kernels, dim_per_kernel], initializer=tf.constant_initializer(0.0))
     W = tf.multiply(theta, tf.expand_dims(tf.exp(log_weight_scale)/tf.sqrt(tf.reduce_sum(tf.square(theta),0)),0))
@@ -69,27 +69,28 @@ def discriminator(x, y_fill, isTrain=True, reuse=False):
         w_init = tf.truncated_normal_initializer(mean=0.0, stddev=0.02)
         b_init = tf.constant_initializer(0.0)
 
-        # concat layer  在第3个维度链接
+        # concat layer  在第3个维度链接 
+        # cat1 ? 28 28 11
         cat1 = tf.concat([x, y_fill], 3)
 
         # 1st hidden layer
-        # 14 14 16
-        conv1 = tf.layers.conv2d(cat1, 16, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        # ? 14 14 16  强转的
+        conv1 = tf.layers.conv2d(cat1, 64, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
         lrelu1 = lrelu(conv1, 0.2)
 
         # 2nd hidden layer
         # 7 7 32
-        conv2 = tf.layers.conv2d(lrelu1, 32, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        conv2 = tf.layers.conv2d(lrelu1, 128, [5, 5], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
         lrelu2 = lrelu(tf.layers.batch_normalization(conv2, training=isTrain), 0.2)
 
         # 3nd hidden layer
         # 4 4 64
-        conv3 = tf.layers.conv2d(lrelu2, 64, [3, 3], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
+        conv3 = tf.layers.conv2d(lrelu2, 256, [3, 3], strides=(2, 2), padding='same', kernel_initializer=w_init, bias_initializer=b_init)
         lrelu3 = lrelu(tf.layers.batch_normalization(conv3, training=isTrain), 0.2)
 
         h4 = tf.layers.max_pooling2d(lrelu3, [4, 4], [1, 1])
 
-        h5 = Minibatch_Discriminator(h4, 128, name='discriminator_MD')
+        h5 = Minibatch_Discriminator(h4, 512, name='discriminator_MD')
 
         h6 = tf.reshape(tf.layers.dense(h5, 1),[-1, 1, 1, 1])
         # output layer
