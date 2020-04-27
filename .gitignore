@@ -3,3 +3,7 @@ MNIST_data
 mnist/__pycache__
 results
 datasets/mnist/mnist.npz
+MNIST_cGAN_results
+samples_for_test
+model
+.vscode

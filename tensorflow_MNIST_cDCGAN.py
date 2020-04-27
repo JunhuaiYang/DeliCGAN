@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
+z_dim = 100  # deliGAN
+
 # leaky_relu
 def lrelu(X, leak=0.2):
     f1 = 0.5 * (1 + leak)
@@ -69,7 +71,7 @@ def discriminator(x, y_fill, isTrain=True, reuse=False):
 # preprocess  预处理   先随机生成10组数据  用这10组数据来产生图像查看训练过程
 img_size = 28
 onehot = np.eye(10)
-temp_z_ = np.random.normal(0, 1, (10, 1, 1, 30))
+temp_z_ = np.random.normal(0, 1, (10, 1, 1, z_dim))
 fixed_z_ = temp_z_
 fixed_y_ = np.zeros((10, 1))
 for i in range(9):
@@ -138,7 +140,6 @@ train_epoch = 30
 global_step = tf.Variable(0, trainable=False)  # 记录全局的步数
 lr = tf.train.exponential_decay(learningrate, global_step, 500, 0.95, staircase=True)  # 学习率衰减
 
-z_dim = 30  # deliGAN
 
 # load MNIST
 mnist = input_data.read_data_sets("MNIST_data/", one_hot=True, reshape=[])
@@ -157,7 +158,7 @@ z = tf.placeholder(tf.float32, [batch_size ,1, 1, z_dim], name="z")   # z为30�
 zmu = tf.get_variable("generator_zmu", [batch_size,1 ,1 , z_dim],initializer=tf.random_uniform_initializer(-1,1))   # zin  生成均匀分布的 μ
 zsig = tf.get_variable("generator_sig", [batch_size,1 ,1 , z_dim],initializer=tf.constant_initializer(0.2))       # 生成0.2的张量  相当于σ = 0.2
 zinp = tf.add(zmu,tf.multiply(z,zsig))  # 这里相当于  zinp = μ + σ * z
-zinp = z     				# Uncomment this line when training/testing baseline GAN
+# zinp = z     				# Uncomment this line when training/testing baseline GAN
 
 # networks : generator
 G_z = generator(zinp, y_label, isTrain)  

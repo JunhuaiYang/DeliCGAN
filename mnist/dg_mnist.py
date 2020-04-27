@@ -146,7 +146,7 @@ def generator(z, y_lable):
         h4 = tf.tanh(convt(h3,[batchsize, 28, 28, 1], 5, 5, 2, 2, name='g_h4'))
         return h4
 
-gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.7)
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.6)
 
 # 这里已经是在训练过程中了  反向传播过程中
 with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
@@ -154,9 +154,9 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
     imageshape = [28*28]
     image_size = 28
     z_dim = 100   # dim == dimension
-    gf_dim = 32  # 特征层大小
-    df_dim = 32  # 特征层大小
-    learningrate = 0.0005
+    gf_dim = 64  # 特征层大小
+    df_dim = 64  # 特征层大小
+    learningrate = 0.0001
     beta1 = 0.5
 
     images = tf.placeholder(tf.float32, [batchsize] + imageshape, name="real_images")
@@ -205,7 +205,7 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
     #  截取数据
     data = []
     data_label = []
-    data_size = 500
+    data_size = 50
     # Uniformly sampling 50 images per category from the dataset  从数据集中为每个类别统一采样50张图像
     for i in range(10):
         train = trainx[np.argmax(trainy,1)==i]

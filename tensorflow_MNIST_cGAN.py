@@ -107,9 +107,10 @@ def show_train_hist(hist, show = False, save = False, path = 'Train_hist.png'):
         plt.close()
 
 # training parameters
-batch_size = 150
+batch_size = 100
 lr = 0.0001
 train_epoch = 300
+z_dim = 100
 
 # load MNIST
 mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
@@ -119,11 +120,21 @@ train_label = mnist.train.labels
 # variables : input
 x = tf.placeholder(tf.float32, shape=(None, 784))
 y = tf.placeholder(tf.float32, shape=(None, 10))
-z = tf.placeholder(tf.float32, shape=(None, 100))
+# z = tf.placeholder(tf.float32, shape=(None, 100))
 isTrain = tf.placeholder(dtype=tf.bool)
 
+################ deliGAN  #################
+#  zinp =  σ * z  +  μ
+
+# z = tf.placeholder(tf.float32, shape=(None, 1, 1, 100))     # 随机数
+z = tf.placeholder(tf.float32, [batch_size , z_dim], name="z")   # z为30维的数据
+zmu = tf.get_variable("generator_zmu", [batch_size, z_dim],initializer=tf.random_uniform_initializer(-1,1))   # zin  生成均匀分布的 μ
+zsig = tf.get_variable("generator_sig", [batch_size, z_dim],initializer=tf.constant_initializer(0.2))       # 生成0.2的张量  相当于σ = 0.2
+zinp = tf.add(zmu,tf.multiply(z,zsig))  # 这里相当于  zinp = μ + σ * z
+# zinp = z     				# Uncomment this line when training/testing baseline GAN
+
 # networks : generator
-G_z = generator(z, y, isTrain)
+G_z = generator(zinp, y, isTrain)
 
 # networks : discriminator
 D_real, D_real_logits = discriminator(x, y, isTrain)
@@ -134,6 +145,8 @@ D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_re
 D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.zeros([batch_size, 1])))
 D_loss = D_loss_real + D_loss_fake
 G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.ones([batch_size, 1])))
+# 需要加入sig的损失函数  防止sig为1
+sigma_loss = tf.reduce_mean(tf.square(zsig-1))/3    # sigma regularizer   sigma的损失函数是对1的均方误差？  其实就是σ的l2正则化
 
 # trainable variables for each network
 T_vars = tf.trainable_variables()
@@ -143,7 +156,7 @@ G_vars = [var for var in T_vars if var.name.startswith('generator')]
 # optimizer for each network
 with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
     D_optim = tf.train.AdamOptimizer(lr, beta1=0.5).minimize(D_loss, var_list=D_vars)
-    G_optim = tf.train.AdamOptimizer(lr, beta1=0.5).minimize(G_loss, var_list=G_vars)
+    G_optim = tf.train.AdamOptimizer(lr, beta1=0.5).minimize(G_loss + sigma_loss, var_list=G_vars)
 
 # open session and initialize all variables
 sess = tf.InteractiveSession()
