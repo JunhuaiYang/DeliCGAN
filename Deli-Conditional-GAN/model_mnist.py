@@ -1,4 +1,4 @@
-from utils import save_images, vis_square,sample_label
+from utils import save_images, vis_square, sample_label, sample_10_label
 from tensorflow.contrib.layers.python.layers import xavier_initializer
 import cv2
 from ops import conv2d, lrelu, de_conv, fully_connect, conv_cond_concat, batch_normal
@@ -31,8 +31,8 @@ class CGAN(object):
         ####################   DeliGAN   #################################
         #  zinp =  σ * z  +  μ
         #  Our Mixture Model modifications，点乘，构造高斯混合模型
-        zmu = tf.get_variable("g_z", [self.batch_size, self.z_dim],    initializer=tf.random_uniform_initializer(-1, 1))
-        zsig = tf.get_variable("g_sig", [self.batch_size, self.z_dim], initializer=tf.constant_initializer(0.2))
+        zmu = tf.get_variable("gen_z", [self.batch_size, self.z_dim],    initializer=tf.random_uniform_initializer(-1, 1))
+        zsig = tf.get_variable("gen_sig", [self.batch_size, self.z_dim], initializer=tf.constant_initializer(0.2))
         zinput = tf.add(zmu, tf.multiply(self.z, zsig))
         ####################   DeliGAN   #############################
 
@@ -71,7 +71,7 @@ class CGAN(object):
 
         t_vars = tf.trainable_variables()
         self.d_var = [var for var in t_vars if 'dis' in var.name]
-        self.g_var = [var for var in t_vars if 'gen' in var.name]  ## ???
+        self.g_var = [var for var in t_vars if 'gen' in var.name]  
 
         self.saver = tf.train.Saver()
 
@@ -100,26 +100,22 @@ class CGAN(object):
                 ### batch_z = np.random.normal(0 , 0.2 , size=[batch_size , sample_size])   #初始代码就被注释了
                 batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
 
-                _, summary_str = sess.run([opti_D, self.merged_summary_op_d],
-                                          feed_dict={self.images: realbatch_array, self.z: batch_z, self.y: real_labels})
+                # 先训练D
+                _, summary_str = sess.run([opti_D, self.merged_summary_op_d], feed_dict={self.images: realbatch_array, self.z: batch_z, self.y: real_labels})
                 summary_writer.add_summary(summary_str, step)
 
-                _, summary_str = sess.run([opti_G, self.merged_summary_op_g],
-                                          feed_dict={self.z: batch_z, self.y: real_labels})
+                # 再训练G
+                _, summary_str = sess.run([opti_G, self.merged_summary_op_g], feed_dict={self.z: batch_z, self.y: real_labels})
                 summary_writer.add_summary(summary_str, step)
 
-                if step % 50 == 0:
-
+                if step % 100 == 0:
                     D_loss = sess.run(self.D_loss, feed_dict={self.images: realbatch_array, self.z: batch_z, self.y: real_labels})
                     fake_loss = sess.run(self.G_loss, feed_dict={self.z: batch_z, self.y: real_labels})
                     print("Step %d: D: loss = %.7f G: loss=%.7f " % (step, D_loss, fake_loss))
 
-                if np.mod(step, 50) == 1 and step != 0:
-
-                    sample_images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: sample_label()})
-                    save_images(sample_images, [8, 8],
-                                './{}/train_{:04d}.png'.format(self.sample_dir, step))
-
+                if np.mod(step, 100) == 1 and step != 0:
+                    sample_images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: sample_10_label()})
+                    save_images(sample_images, [10, 6], './{}/train_{:04d}.png'.format(self.sample_dir, step))
                     self.saver.save(sess, self.model_path)
 
                 step = step + 1
@@ -171,66 +167,80 @@ class CGAN(object):
 
             print("the visualization finish!")
 
+    # z ? 100
+    # y ? 10
     def gern_net(self, z, y):   #G的输出层不加BN层
-
         with tf.variable_scope('generator') as scope:
-
+            # ? 1 1 10
             yb = tf.reshape(y, shape=[self.batch_size, 1, 1, self.y_dim])
+            # ? 110 把z和y相连
             z = tf.concat([z, y], 1)  #在同一行的后面加，即列数增加  (64，100+10)
+            # 7 14  计算中间层大小
             c1, c2 = int( self.output_size / 4), int(self.output_size / 2 ) #7，14
 
             # 10 stand for the num of labels
+            # ? 1024
             d1 = tf.nn.relu(batch_normal(fully_connect(z, output_size=1024, scope='gen_fully'), scope='gen_bn1'))  #(64,1024)
-
+            # ? 1034  在第一个全连接层后面在连接y
             d1 = tf.concat([d1, y], 1)  #(64,1034)
-
-            d2 = tf.nn.relu(batch_normal(fully_connect(d1, output_size=7*7*2*64, scope='gen_fully2'), scope='gen_bn2'))  #c1*c1*2*self.batch_size？？？
+            # 全连接层2 ? 7*7*2*64  -> c1*c1*2*self.batch_size
+            d2 = tf.nn.relu(batch_normal(fully_connect(d1, output_size=c1*c2*self.batch_size, scope='gen_fully2'), scope='gen_bn2'))  #c1*c1*2*self.batch_size？？？
             #64,7*7*2*64
 
-            d2 = tf.reshape(d2, [self.batch_size, c1, c1, 64 * 2])  #64,7,7,128
-            d2 = conv_cond_concat(d2, yb)#64,7,7,138
-
+            # ? 7 7 128
+            d2 = tf.reshape(d2, [self.batch_size, c1, c1, self.batch_size*2])  #64,7,7,128
+            # ? 7 7 138 
+            d2 = conv_cond_concat(d2, yb)# 又将y加到后面
+            # ? 14 14 128
             d3 = tf.nn.relu(batch_normal(de_conv(d2, output_shape=[self.batch_size, c2, c2, 128], name='gen_deconv1'), scope='gen_bn3'))#64,14,14,128
-
-            d3 = conv_cond_concat(d3, yb)#64,14,14,138
-
-            d4 = de_conv(d3, output_shape=[self.batch_size, self.output_size, self.output_size, self.channel], 
-                         name='gen_deconv2', initializer = xavier_initializer())#64,28,28,1
+            # ? 14 14 138 
+            d3 = conv_cond_concat(d3, yb) # 再加一次
+            # 输出 ? 128 128 1
+            d4 = de_conv(d3, output_shape=[self.batch_size, self.output_size, self.output_size, self.channel],  name='gen_deconv2', initializer = xavier_initializer()) #64,28,28,1
 
             return tf.nn.sigmoid(d4)
 
+    # images ? 28 28 1
+    # y ? 10
     def dis_net(self, images, y, reuse=False):    #D的输入层不加BN层
-
         with tf.variable_scope("discriminator") as scope:
-
             if reuse == True:
                 scope.reuse_variables()
 
             # mnist data's shape is (28 , 28 , 1)
+            # ? 1 1 10
             yb = tf.reshape(y, shape=[self.batch_size, 1, 1, self.y_dim])
-            # concat
+            # concat ? 28 28 11
             concat_data = conv_cond_concat(images, yb)
-
+            # ? 14 14 10 
+            #  w1 3 3 11 10  卷积核
             conv1, w1 = conv2d(concat_data, output_dim=10, name='dis_conv1')
             tf.add_to_collection('weight_1', w1)
 
             conv1 = lrelu(conv1)
-            conv1 = conv_cond_concat(conv1, yb)
+            # ? 14 14 20
+            conv1 = conv_cond_concat(conv1, yb) # 再连接条件
             tf.add_to_collection('ac_1', conv1)
 
-
+            # ? 7 7 64 
+            # w2 3 3 20 64
             conv2, w2 = conv2d(conv1, output_dim=64, name='dis_conv2')
             tf.add_to_collection('weight_2', w2)
 
             conv2 = lrelu(batch_normal(conv2, scope='dis_bn1'))
             tf.add_to_collection('ac_2', conv2)  #将元素conv2添加到列表ac_2中
-
+            
+            # ? 3136 -> 7*7*64
             conv2 = tf.reshape(conv2, [self.batch_size, -1])
-            conv2 = tf.concat([conv2, y], 1)
+            # ? 3146
+            conv2 = tf.concat([conv2, y], 1) # 再加
 
+            # ? 1024
             f1 = lrelu(batch_normal(fully_connect(conv2, output_size=1024, scope='dis_fully1'), scope='dis_bn2', reuse=reuse))
+            # ? 1034
             f1 = tf.concat([f1, y], 1)
 
+            # 加一个全连接 ? 1
             out = fully_connect(f1, output_size=1, scope='dis_fully2',  initializer = xavier_initializer())
 
             return tf.nn.sigmoid(out), out

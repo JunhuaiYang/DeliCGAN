@@ -7,3 +7,5 @@ MNIST_cGAN_results
 samples_for_test
 model
 .vscode
+tmp
+visualization/activation.png

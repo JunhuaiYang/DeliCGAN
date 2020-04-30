@@ -39,8 +39,8 @@ class Mnist(object):
         teY = np.asarray(teY)
 
         X = np.concatenate((trX, teX), axis=0)
-        y = np.concatenate((trY, teY), axis=0) #为什么train和test的拼接在一起？？
-
+        y = np.concatenate((trY, teY), axis=0)
+      
         seed = 547
 
         np.random.seed(seed)  #seed相同，产生的随机数相同
@@ -50,6 +50,9 @@ class Mnist(object):
 
         #convert label to one-hot
 
+        # # 在这里固定住训练集
+        # data_size = 50
+
         y_vec = np.zeros((len(y), 10), dtype=np.float)
         for i, label in enumerate(y):
             y_vec[i, int(y[i])] = 1.0
@@ -58,12 +61,13 @@ class Mnist(object):
 
     def getNext_batch(self, iter_num=0, batch_size=64):
 
+        # ro_num = 640 / batch_size - 1  # 要改
+
         ro_num = len(self.data) / batch_size - 1
 
-        if iter_num % ro_num == 0:
-
+        if iter_num % ro_num == 0:  # 为了每次batch输入的数据不同
             length = len(self.data)
-            perm = np.arange(length)
+            perm = np.arange(length) # 随机
             np.random.shuffle(perm)
             self.data = np.array(self.data)
             self.data = self.data[perm]
@@ -79,7 +83,11 @@ def get_image(image_path , is_grayscale = False):
 
 
 def save_images(images , size , image_path):
+    if images.shape[0] != size[0]*size[1]:
+        ran = range(size[0]*size[1], images.shape[0])
+        images = np.delete(images, ran, axis=0)
     return imsave(inverse_transform(images) , size , image_path)
+
 
 def imread(path, is_grayscale = False):
     if (is_grayscale):
@@ -151,4 +159,11 @@ def sample_label():
     label_vector = np.zeros((num , 10), dtype=np.float)
     for i in range(0 , num):
         label_vector[i , int(i/8)] = 1.0
+    return label_vector
+
+def sample_10_label():
+    num = 64
+    label_vector = np.zeros((num , 10), dtype=np.float)
+    for i in range(0 , num):
+        label_vector[i , int(i/6)%10] = 1.0
     return label_vector

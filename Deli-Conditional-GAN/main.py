@@ -12,7 +12,7 @@ flags.DEFINE_float("learn_rate", 0.0002, "the learning rate for gan")
 flags.DEFINE_integer("batch_size", 64, "the batch number")
 flags.DEFINE_integer("z_dim", 100, "the dimension of noise z")
 flags.DEFINE_integer("y_dim", 10, "the dimension of condition y")
-flags.DEFINE_string("log_dirs", "/tmp/tensorflow_mnist",
+flags.DEFINE_string("log_dirs", "tmp/tensorflow_mnist",
                     "the path of tensorflow's log")
 flags.DEFINE_string("model_path", "model/model.ckpt", "the path of model")
 flags.DEFINE_string("visua_path", "visualization",

@@ -16,7 +16,7 @@
             "name": "Python: cDCGAN",
             "type": "python",
             "request": "launch",
-            "program": "Conditional-GAN-master\\main.py",
+            "program": "Deli-Conditional-GAN\\main.py",
             "console": "integratedTerminal"
         }
     ]
