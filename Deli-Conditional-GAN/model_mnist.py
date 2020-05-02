@@ -9,7 +9,7 @@ class CGAN(object):
 
     # build model
     def __init__(self, data_ob, sample_dir, output_size, learn_rate, batch_size, z_dim, y_dim, log_dir
-         , model_path, visua_path):
+         , model_path, visua_path, epoch):
 
         self.data_ob = data_ob      # 数据集对象
         self.sample_dir = sample_dir  
@@ -25,6 +25,7 @@ class CGAN(object):
         self.images = tf.placeholder(tf.float32, [batch_size, self.output_size, self.output_size, self.channel])  
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim])
         self.y = tf.placeholder(tf.float32, [self.batch_size, self.y_dim])
+        self.epoch = epoch
 
     def build_model(self):
 
@@ -40,7 +41,7 @@ class CGAN(object):
         #构建的图像的Tensor必须是4-D形状[batch_size, height, width, channels], 其中channels可以是
         #1： tensor被解析成灰度图像;3：tensor被解析成RGB图像;4：tensor被解析成RGBA图像
 
-        # zinput = self.z   # baselin GAN
+        zinput = self.z   # baselin GAN
         self.fake_images = self.gern_net(zinput, self.y)
 
         G_image = tf.summary.image("G_out", self.fake_images)  # 输出Summary带有图像的协议缓冲区(name,tensor) 

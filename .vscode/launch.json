@@ -5,18 +5,27 @@
     "version": "0.2.0",
     "configurations": [
 
+
+
         {
             "name": "Python: 当前文件",
             "type": "python",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal"
-        }
+        },
         {
             "name": "Python: cDCGAN",
             "type": "python",
             "request": "launch",
             "program": "Deli-Conditional-GAN\\main.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: cDCGANsss",
+            "type": "python",
+            "request": "launch",
+            "program": "DeLi-CGAN_1_mnist\\Conditional-GAN-master\\main.py",
             "console": "integratedTerminal"
         }
     ]

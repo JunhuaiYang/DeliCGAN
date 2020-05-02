@@ -18,7 +18,7 @@ class Mnist(object):
     def load_mnist(self):
 
         # data_dir = os.path.join("./data", "mnist") #连接两个或更多的路径名组件
-        data_dir = "MNIST_data"
+        data_dir = 'datasets/mnist'
         fd = open(os.path.join(data_dir, 'train-images-idx3-ubyte'))
         loaded = np.fromfile(file=fd , dtype=np.uint8)  #从文件中读出
         trX = loaded[16:].reshape((60000, 28 , 28 ,  1)).astype(np.float)
@@ -38,31 +38,36 @@ class Mnist(object):
         trY = np.asarray(trY)  #将结构数据转换为ndarray类型
         teY = np.asarray(teY)
 
-        X = np.concatenate((trX, teX), axis=0)
-        y = np.concatenate((trY, teY), axis=0)
+        trainx = np.concatenate((trX, teX), axis=0)
+        trainy = np.concatenate((trY, teY), axis=0)
+        trainx = trainx / 255.
       
-        seed = 547
-
-        np.random.seed(seed)  #seed相同，产生的随机数相同
-        np.random.shuffle(X)
-        np.random.seed(seed)
-        np.random.shuffle(y)
+        # seed = 547
+        # np.random.seed(seed)  # seed相同，产生的随机数相同
+        # np.random.shuffle(trainx)
+        # np.random.seed(seed)
+        # np.random.shuffle(trainy)
 
         #convert label to one-hot
+        y_vec = np.zeros((len(trainy), 10), dtype=np.float)
+        for i, label in enumerate(trainy):
+            y_vec[i, int(trainy[i])] = 1.0
 
-        # # 在这里固定住训练集
-        # data_size = 50
+        # 在这里固定住训练集
+        data_size = 70
+        data = []
+        data_label = []
+        # 从数据集中为每个类别统一采样50张图像
+        for i in range(10):
+            train = trainx[np.argmax(y_vec,1)==i]
+            label = y_vec[np.argmax(y_vec,1)==i]
+            data.extend(train[-data_size:])
+            data_label.extend(label[-data_size:])
 
-        y_vec = np.zeros((len(y), 10), dtype=np.float)
-        for i, label in enumerate(y):
-            y_vec[i, int(y[i])] = 1.0
+        return data, data_label
 
-        return X / 255., y_vec
 
     def getNext_batch(self, iter_num=0, batch_size=64):
-
-        # ro_num = 640 / batch_size - 1  # 要改
-
         ro_num = len(self.data) / batch_size - 1
 
         if iter_num % ro_num == 0:  # 为了每次batch输入的数据不同
