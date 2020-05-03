@@ -1,4 +1,4 @@
-from utils import save_images, vis_square, sample_label, sample_10_label
+from utils import save_images, vis_square, sample_label, sample_10_label, number_lable, save_all_image, random_lable
 from tensorflow.contrib.layers.python.layers import xavier_initializer
 import cv2
 from ops import conv2d, lrelu, de_conv, fully_connect, conv_cond_concat, batch_normal
@@ -11,7 +11,7 @@ class CGAN(object):
 
     # build model
     def __init__(self, data_ob, sample_dir, output_size, learn_rate, batch_size, z_dim, y_dim, log_dir
-         , model_path, visua_path, epoch):
+         , model_path, visua_path, epoch, generate_number, generate_path):
 
         self.data_ob = data_ob      # 数据集对象
         self.sample_dir = sample_dir  
@@ -28,6 +28,8 @@ class CGAN(object):
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim])
         self.y = tf.placeholder(tf.float32, [self.batch_size, self.y_dim])
         self.epoch = epoch
+        self.generate_number = generate_number
+        self.generate_path = generate_path
 
     def build_model(self):
 
@@ -38,7 +40,7 @@ class CGAN(object):
         zinput = tf.add(zmu, tf.multiply(self.z, zsig))
         ####################   DeliGAN   #############################
 
-        zinput = self.z   # baselin GAN
+        # zinput = self.z   # baselin GAN
         self.fake_images = self.gern_net(zinput, self.y)
         G_image = tf.summary.image("G_out", self.fake_images)  # 输出Summary带有图像的协议缓冲区(name,tensor) 
 
@@ -156,6 +158,39 @@ class CGAN(object):
             vis_square(self.vi_path, ac[0][0].transpose(3, 1, 2, 0), type=0)
 
             print("the visualization finish!")
+    
+    def generate_image(self):
+        init = tf.initialize_all_variables()
+        with tf.Session() as sess:
+            sess.run(init)
+            self.saver.restore(sess, self.model_path)
+
+            for i in range(1):
+                # batch_label = number_lable(self.batch_size, i)
+                # batch_label = sample_label()
+                all_label = random_lable(self.batch_size)
+                batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
+                # batch_z = np.random.uniform(1, -1, size=[self.batch_size, self.z_dim])
+
+                images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: all_label})
+                # images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: sample_label()})
+
+                # save_images(images, [8, 8], './{}/test{:02d}_{:04d}.png'.format(self.sample_dir, 0, 0))
+                # image = cv2.imread('./{}/test{:02d}_{:04d}.png'.format(self.sample_dir, 0, 0), 0)
+                # cv2.imshow("test", image)
+                # cv2.waitKey(-1)
+
+                for j in range(self.generate_number - 1):
+                    batch_label = random_lable(self.batch_size)
+                    batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
+                    output = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: batch_label})
+                    images = np.concatenate([images, output], axis=0)
+                    all_label = np.concatenate([all_label, batch_label], axis=0)
+
+                images = np.array(images)
+                save_all_image(images, all_label, self.generate_path)
+                # print('generate label {} finshed!'.format(i))
+            print('generate finshed...')
 
     # z ? 100
     # y ? 10
