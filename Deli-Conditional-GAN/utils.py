@@ -55,7 +55,7 @@ class Mnist(object):
             y_vec[i, int(trainy[i])] = 1.0
 
         # 在这里固定住训练集
-        data_size = 50
+        data_size = 80
         data = []
         data_label = []
         # 从数据集中为每个类别统一采样50张图像
@@ -179,6 +179,27 @@ def sample_10_label():
         label_vector[i , int(i/6)%10] = 1.0
     return label_vector
 
+def number_lable(number, label):
+    label_vector = np.zeros((number , 10), dtype=np.float)
+    for i in range(number):
+        label_vector[i , label] = 1.0
+    return label_vector
+
+def random_lable(batchsize):
+    onehot = np.eye(10)
+    y_ = np.random.randint(0, 10, (batchsize, 1))  # 随机生成label 
+    y_random = onehot[y_.astype(np.int32)].reshape([batchsize, 10])
+    return y_random
+
+def save_all_image(image, label, path):
+    image = image*255.
+    image = image.astype('int64')
+    count = [0]*10
+    label = [np.argmax(one_hot) for one_hot in label]
+    for i in range(len(image)):
+        imsaveone(image[i],  '{}/{}_{}.png'.format(path, label[i], count[label[i]]))
+        count[label[i]] += 1
+
 # 生成当前的样本
 if __name__ == "__main__":
     path = './datasets/mnist_part'
@@ -187,11 +208,5 @@ if __name__ == "__main__":
     data = Mnist() 
     datax, datay = data.load_mnist()
     datax = np.array(datax)
-    imagex = datax*255.
-    imagex = imagex.astype('int64')
-    imagey = [np.argmax(one_hot) for one_hot in datay]
-    count = [0]*10
-    for i in range(len(datax)):
-        imsaveone(imagex[i],  '{}/{}_{}.png'.format(path, imagey[i], count[imagey[i]]))
-        count[imagey[i]] += 1
+    save_all_image(datax, datay, path)
     print('样本输出完成')

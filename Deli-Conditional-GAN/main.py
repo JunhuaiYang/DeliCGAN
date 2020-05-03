@@ -15,7 +15,10 @@ flags.DEFINE_integer("y_dim", 10, "the dimension of condition y")
 flags.DEFINE_string("log_dirs", "DeliCGAN-results/tmp/tensorflow_mnist", "the path of tensorflow's log")
 flags.DEFINE_string("model_path", "DeliCGAN-results/model/model.ckpt", "the path of model")
 flags.DEFINE_string("visua_path", "DeliCGAN-results/visualization", "the path of visuzation images")  # 显示 
-flags.DEFINE_integer("op", 0, "0: train ; 1:test ; 2:visualize")
+flags.DEFINE_integer("op", 3, "0: train ; 1:test ; 2:visualize ; 3:generate")
+flags.DEFINE_integer("generate_number", 500, "the number of generate image epoch")
+flags.DEFINE_string("generate_path", "generate-images", "the path of generate images")  # 显示 
+
 
 FLAGS = flags.FLAGS
 
@@ -27,13 +30,16 @@ if not os.path.exists(FLAGS.model_path):
     os.makedirs(FLAGS.model_path)
 if not os.path.exists(FLAGS.visua_path):
     os.makedirs(FLAGS.visua_path)
+if not os.path.exists(FLAGS.generate_path):
+    os.makedirs(FLAGS.generate_path)
 
 
 def main(_):
     mn_object = Mnist()
 
     cg = CGAN(data_ob=mn_object, sample_dir=FLAGS.sample_dir, output_size=FLAGS.output_size, learn_rate=FLAGS.learn_rate, batch_size=FLAGS.batch_size,
-              z_dim=FLAGS.z_dim, y_dim=FLAGS.y_dim, log_dir=FLAGS.log_dirs, model_path=FLAGS.model_path, visua_path=FLAGS.visua_path, epoch=FLAGS.epoch)
+              z_dim=FLAGS.z_dim, y_dim=FLAGS.y_dim, log_dir=FLAGS.log_dirs, model_path=FLAGS.model_path, visua_path=FLAGS.visua_path, epoch=FLAGS.epoch,
+              generate_number=FLAGS.generate_number, generate_path=FLAGS.generate_path )
 
     cg.build_model()
 
@@ -41,8 +47,11 @@ def main(_):
         cg.train()
     elif FLAGS.op == 1:
         cg.test()
-    else:
+    elif FLAGS.op == 2:
         cg.visual()
+    elif FLAGS.op == 3:
+        cg.generate_image()
+        
 
 
 if __name__ == '__main__':
