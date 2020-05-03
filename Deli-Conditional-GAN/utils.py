@@ -3,6 +3,7 @@ import numpy as np
 import scipy
 import scipy.misc
 import matplotlib.pyplot as plt
+import cv2
 
 
 class Mnist(object):
@@ -17,8 +18,8 @@ class Mnist(object):
 
     def load_mnist(self):
 
-        # data_dir = os.path.join("./data", "mnist") #连接两个或更多的路径名组件
         data_dir = 'datasets/mnist'
+        # data_dir = 'datasets/fashion-mnist'
         fd = open(os.path.join(data_dir, 'train-images-idx3-ubyte'))
         loaded = np.fromfile(file=fd , dtype=np.uint8)  #从文件中读出
         trX = loaded[16:].reshape((60000, 28 , 28 ,  1)).astype(np.float)
@@ -42,11 +43,11 @@ class Mnist(object):
         trainy = np.concatenate((trY, teY), axis=0)
         trainx = trainx / 255.
       
-        # seed = 547
-        # np.random.seed(seed)  # seed相同，产生的随机数相同
-        # np.random.shuffle(trainx)
-        # np.random.seed(seed)
-        # np.random.shuffle(trainy)
+        seed = 500
+        np.random.seed(seed)  # seed相同，产生的随机数相同
+        np.random.shuffle(trainx)
+        np.random.seed(seed)
+        np.random.shuffle(trainy)
 
         #convert label to one-hot
         y_vec = np.zeros((len(trainy), 10), dtype=np.float)
@@ -54,7 +55,7 @@ class Mnist(object):
             y_vec[i, int(trainy[i])] = 1.0
 
         # 在这里固定住训练集
-        data_size = 70
+        data_size = 50
         data = []
         data_label = []
         # 从数据集中为每个类别统一采样50张图像
@@ -103,6 +104,10 @@ def imread(path, is_grayscale = False):
 def imsave(images , size , path):
     return scipy.misc.imsave(path , merge(images , size))
 
+def imsaveone(images, path):
+    images = np.ones_like([images.shape[1], images.shape[0], 3]) * images
+    return scipy.misc.imsave(path , images)
+
 #size [8,8]    ;images.shape(28,28),将一个batch输出64张图片变成8*8排列
 def merge(images , size):
     h , w = images.shape[1] , images.shape[2]
@@ -114,6 +119,7 @@ def merge(images , size):
 
     return img
 
+# 提高对比度
 def inverse_transform(image):
     return (image + 1.)/2.
 
@@ -172,3 +178,20 @@ def sample_10_label():
     for i in range(0 , num):
         label_vector[i , int(i/6)%10] = 1.0
     return label_vector
+
+# 生成当前的样本
+if __name__ == "__main__":
+    path = './datasets/mnist_part'
+    if not os.path.exists(path):
+        os.makedirs(path)
+    data = Mnist() 
+    datax, datay = data.load_mnist()
+    datax = np.array(datax)
+    imagex = datax*255.
+    imagex = imagex.astype('int64')
+    imagey = [np.argmax(one_hot) for one_hot in datay]
+    count = [0]*10
+    for i in range(len(datax)):
+        imsaveone(imagex[i],  '{}/{}_{}.png'.format(path, imagey[i], count[imagey[i]]))
+        count[imagey[i]] += 1
+    print('样本输出完成')

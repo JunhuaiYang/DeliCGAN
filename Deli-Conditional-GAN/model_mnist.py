@@ -4,6 +4,8 @@ import cv2
 from ops import conv2d, lrelu, de_conv, fully_connect, conv_cond_concat, batch_normal
 import tensorflow as tf
 import numpy as np
+import time
+import os
 
 class CGAN(object):
 
@@ -31,19 +33,13 @@ class CGAN(object):
 
         ####################   DeliGAN   #################################
         #  zinp =  σ * z  +  μ
-        #  Our Mixture Model modifications，点乘，构造高斯混合模型
-        zmu = tf.get_variable("gen_z", [self.batch_size, self.z_dim],    initializer=tf.random_uniform_initializer(-1, 1))
+        zmu = tf.get_variable("gen_mu", [self.batch_size, self.z_dim],    initializer=tf.random_uniform_initializer(-1, 1))
         zsig = tf.get_variable("gen_sig", [self.batch_size, self.z_dim], initializer=tf.constant_initializer(0.2))
         zinput = tf.add(zmu, tf.multiply(self.z, zsig))
         ####################   DeliGAN   #############################
 
-        #self.fake_images = self.gern_net(self.z, self.y)
-        #构建的图像的Tensor必须是4-D形状[batch_size, height, width, channels], 其中channels可以是
-        #1： tensor被解析成灰度图像;3：tensor被解析成RGB图像;4：tensor被解析成RGBA图像
-
         zinput = self.z   # baselin GAN
         self.fake_images = self.gern_net(zinput, self.y)
-
         G_image = tf.summary.image("G_out", self.fake_images)  # 输出Summary带有图像的协议缓冲区(name,tensor) 
 
         ##the loss of gerenate network
@@ -61,10 +57,9 @@ class CGAN(object):
         sigma_loss = tf.reduce_mean(tf.square(zsig - 1)) / 3  # sigma L2 regularizer
 
         self.D_loss = D_real_loss + D_fake_loss
-        self.G_loss = G_fake_loss + sigma_loss  #改动加上sigma的L2 正则化
-        #self.G_loss = G_fake_loss
+        self.G_loss = G_fake_loss + sigma_loss  # 加上sigma的L2 正则化
 
-        loss_sum = tf.summary.scalar("D_loss", self.D_loss)  #一般在画loss,accuary时会用到这个函数
+        loss_sum = tf.summary.scalar("D_loss", self.D_loss)  # 画loss,accuary时会用到这个函数
         G_loss_sum = tf.summary.scalar("G_loss", self.G_loss)
 
         self.merged_summary_op_d = tf.summary.merge([loss_sum, D_pro_sum])
@@ -77,7 +72,6 @@ class CGAN(object):
         self.saver = tf.train.Saver()
 
     def train(self):
-
         opti_D = tf.train.AdamOptimizer(learning_rate=self.learn_rate, beta1=0.5).minimize(self.D_loss, var_list=self.d_var)
         opti_G = tf.train.AdamOptimizer(learning_rate=self.learn_rate, beta1=0.5).minimize(self.G_loss, var_list=self.g_var)
         init = tf.global_variables_initializer()
@@ -86,19 +80,20 @@ class CGAN(object):
         config.gpu_options.allow_growth = True
 
         with tf.Session(config=config) as sess:
-
+            logdir = os.path.join(self.log_dir, time.strftime('%Y%m%d-%H%M%S',time.localtime(time.time())))
             sess.run(init)
-            summary_writer = tf.summary.FileWriter(self.log_dir, graph=sess.graph)
+            summary_writer = tf.summary.FileWriter(logdir , graph=sess.graph)
             #指定一个文件用来保存图，可以调用其add_summary（）方法将训练过程数据保存在filewriter指定的文件中
+            start_time = time.time()
+            epoch_start_time = time.time()
 
             step = 0
-            while step <= 10000:
+            
+            while step <= self.epoch:
 
                 realbatch_array, real_labels = self.data_ob.getNext_batch(step)
-
                 # Get the z
-                #batch_z = np.random.uniform(-1, 1, size=[self.batch_size, self.z_dim])  #初始版本均匀分布,我们try混合高斯
-                ### batch_z = np.random.normal(0 , 0.2 , size=[batch_size , sample_size])   #初始代码就被注释了
+                #batch_z = np.random.uniform(-1, 1, size=[self.batch_size, self.z_dim])  # 初始版本均匀分布
                 batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
 
                 # 先训练D
@@ -111,47 +106,44 @@ class CGAN(object):
 
                 if step % 100 == 0:
                     D_loss = sess.run(self.D_loss, feed_dict={self.images: realbatch_array, self.z: batch_z, self.y: real_labels})
-                    fake_loss = sess.run(self.G_loss, feed_dict={self.z: batch_z, self.y: real_labels})
-                    print("Step %d: D: loss = %.7f G: loss=%.7f " % (step, D_loss, fake_loss))
+                    G_loss = sess.run(self.G_loss, feed_dict={self.z: batch_z, self.y: real_labels})
+                    epoch_end_time = time.time()
+                    per_epoch_ptime = epoch_end_time - epoch_start_time
+                    print("Step [%d:%d] - ptime: %.2f  D: loss = %.7f G: loss=%.7f " % (step, self.epoch, per_epoch_ptime, D_loss, G_loss))
+                    epoch_start_time = time.time()
 
                 if np.mod(step, 100) == 1 and step != 0:
                     sample_images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: sample_10_label()})
-                    save_images(sample_images, [10, 6], './{}/train_{:04d}.png'.format(self.sample_dir, step))
+                    save_images(sample_images, [10, 6], './{}/train_{:04d}.png'.format(self.sample_dir, step-1))
                     self.saver.save(sess, self.model_path)
 
                 step = step + 1
 
+            end_time = time.time()
+            total_ptime = end_time - start_time
             save_path = self.saver.save(sess, self.model_path)
-            print ("Model saved in file: %s" % save_path)
+            print('Training finish!... total time:%.2f' % total_ptime)
+            print("Model saved in file: %s" % save_path)
 
     def test(self):
-
         init = tf.initialize_all_variables()
-
         with tf.Session() as sess:
             sess.run(init)
-
             self.saver.restore(sess, self.model_path)
+
             sample_z = np.random.uniform(1, -1, size=[self.batch_size, self.z_dim])
-
             output = sess.run(self.fake_images, feed_dict={self.z: sample_z, self.y: sample_label()})
-
             save_images(output, [8, 8], './{}/test{:02d}_{:04d}.png'.format(self.sample_dir, 0, 0))
-
             image = cv2.imread('./{}/test{:02d}_{:04d}.png'.format(self.sample_dir, 0, 0), 0)
-
             cv2.imshow("test", image)
-
             cv2.waitKey(-1)
 
             print("Test finish!")
 
     def visual(self):
-
         init = tf.initialize_all_variables()
         with tf.Session() as sess:
             sess.run(init)
-
             self.saver.restore(sess, self.model_path)
 
             realbatch_array, real_labels = self.data_ob.getNext_batch(0)
@@ -159,11 +151,8 @@ class CGAN(object):
             # visualize the weights 1 or you can change weights_2 .
             conv_weights = sess.run([tf.get_collection('weight_2')])
             vis_square(self.vi_path, conv_weights[0][0].transpose(3, 0, 1, 2), type=1)
-
             # visualize the activation 1
-            ac = sess.run([tf.get_collection('ac_2')],
-                          feed_dict={self.images: realbatch_array[:64], self.z: batch_z, self.y: sample_label()})
-
+            ac = sess.run([tf.get_collection('ac_2')], feed_dict={self.images: realbatch_array[:64], self.z: batch_z, self.y: sample_label()})
             vis_square(self.vi_path, ac[0][0].transpose(3, 1, 2, 0), type=0)
 
             print("the visualization finish!")
@@ -196,7 +185,7 @@ class CGAN(object):
             d3 = tf.nn.relu(batch_normal(de_conv(d2, output_shape=[self.batch_size, c2, c2, 128], name='gen_deconv1'), scope='gen_bn3'))#64,14,14,128
             # ? 14 14 138 
             d3 = conv_cond_concat(d3, yb) # 再加一次
-            # 输出 ? 128 128 1
+            # 输出 ? 28 28 1
             d4 = de_conv(d3, output_shape=[self.batch_size, self.output_size, self.output_size, self.channel],  name='gen_deconv2', initializer = xavier_initializer()) #64,28,28,1
 
             return tf.nn.sigmoid(d4)
