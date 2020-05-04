@@ -164,11 +164,12 @@ class CGAN(object):
         with tf.Session() as sess:
             sess.run(init)
             self.saver.restore(sess, self.model_path)
-            print('generate started...')
+            print('generate started... path: {}'.format(self.generate_path))
 
             for j in range(self.generate_number):
                 batch_label = random_lable(self.batch_size)
-                batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
+                # batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
+                batch_z = np.random.uniform(1, -1, size=[self.batch_size, self.z_dim]) # 均匀
                 images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: batch_label})
                 save_all_image(images, batch_label, self.generate_path)
 

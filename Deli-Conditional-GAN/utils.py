@@ -55,7 +55,7 @@ class Mnist(object):
             y_vec[i, int(trainy[i])] = 1.0
 
         # 在这里固定住训练集
-        data_size = 80
+        data_size = 50
         data = []
         data_label = []
         # 从数据集中为每个类别统一采样50张图像

@@ -9,16 +9,15 @@ flags.DEFINE_string("sample_dir", "DeliCGAN-results/result_image", "the dir of s
 flags.DEFINE_integer("output_size", 28, "the size of generate image")
 flags.DEFINE_float("learn_rate", 0.0002, "the learning rate for gan")
 flags.DEFINE_integer("batch_size", 64, "the batch number")
-flags.DEFINE_integer("epoch", 8000, "the epoch number")
+flags.DEFINE_integer("epoch", 7000, "the epoch number")
 flags.DEFINE_integer("z_dim", 100, "the dimension of noise z")
 flags.DEFINE_integer("y_dim", 10, "the dimension of condition y")
 flags.DEFINE_string("log_dirs", "DeliCGAN-results/tmp/tensorflow_mnist", "the path of tensorflow's log")
 flags.DEFINE_string("model_path", "DeliCGAN-results/model/model.ckpt", "the path of model")
 flags.DEFINE_string("visua_path", "DeliCGAN-results/visualization", "the path of visuzation images")  # 显示 
-flags.DEFINE_integer("op", 3, "0: train ; 1:test ; 2:visualize ; 3:generate")
-flags.DEFINE_integer("generate_number", 500, "the number of generate image epoch")
-flags.DEFINE_string("generate_path", "generate-images", "the path of generate images")  # 显示 
-
+flags.DEFINE_integer("op", 0, "0: train ; 1:test ; 2:visualize ; 3:generate")
+flags.DEFINE_integer("generate_number", 1500, "the number of generate image epoch")
+flags.DEFINE_string("generate_path", "generate-images/mnist_new", "the path of generate images")  # 显示 
 
 FLAGS = flags.FLAGS
 
