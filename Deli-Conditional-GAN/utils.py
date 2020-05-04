@@ -191,14 +191,15 @@ def random_lable(batchsize):
     y_random = onehot[y_.astype(np.int32)].reshape([batchsize, 10])
     return y_random
 
+COUNT = [0]*10
+
 def save_all_image(image, label, path):
     image = image*255.
     image = image.astype('int64')
-    count = [0]*10
     label = [np.argmax(one_hot) for one_hot in label]
     for i in range(len(image)):
-        imsaveone(image[i],  '{}/{}_{}.png'.format(path, label[i], count[label[i]]))
-        count[label[i]] += 1
+        imsaveone(image[i],  '{}/{}_{}.png'.format(path, label[i], COUNT[label[i]]))
+        COUNT[label[i]] += 1
 
 # 生成当前的样本
 if __name__ == "__main__":

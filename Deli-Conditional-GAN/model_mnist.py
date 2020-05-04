@@ -166,20 +166,13 @@ class CGAN(object):
             self.saver.restore(sess, self.model_path)
             print('generate started...')
 
-            all_label = random_lable(self.batch_size)
-            batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
-            # batch_z = np.random.uniform(1, -1, size=[self.batch_size, self.z_dim])
-            images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: all_label})
-
-            for j in range(self.generate_number - 1):
+            for j in range(self.generate_number):
                 batch_label = random_lable(self.batch_size)
                 batch_z = np.random.normal(0, 1.0, [self.batch_size, self.z_dim]).astype(np.float32)  # 正态
-                output = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: batch_label})
-                images = np.concatenate([images, output], axis=0)
-                all_label = np.concatenate([all_label, batch_label], axis=0)
+                images = sess.run(self.fake_images, feed_dict={self.z: batch_z, self.y: batch_label})
+                save_all_image(images, batch_label, self.generate_path)
 
-            images = np.array(images)
-            save_all_image(images, all_label, self.generate_path)
+            # images = np.array(images)
             print('generate finshed...')
 
     # z ? 100
