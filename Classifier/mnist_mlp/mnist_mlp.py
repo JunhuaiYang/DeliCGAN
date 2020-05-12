@@ -47,8 +47,8 @@ for file in os.listdir(simple_path):
     img = Image.open(simple_path+'/'+file).resize((28,28)).convert('L')
     simple_x.append(np.array(img))
 
-fake_path = 'generate-images/mnist_new96'
-# fake_path = 'generate-images/fashion_new32'
+fake_path = 'generate-images/mnist'
+# fake_path = 'generate-images/fashion'
 for file in os.listdir(fake_path):
     fake_y.append(int(file.split('_')[0]))
     img = Image.open(fake_path+'/'+file).resize((28,28)).convert('L')

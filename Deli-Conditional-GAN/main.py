@@ -16,8 +16,8 @@ flags.DEFINE_string("log_dirs", "DeliCGAN-results/tmp/tensorflow_mnist", "the pa
 flags.DEFINE_string("model_path", "DeliCGAN-results/model/model.ckpt", "the path of model")
 flags.DEFINE_string("visua_path", "DeliCGAN-results/visualization", "the path of visuzation images")  # 显示 
 flags.DEFINE_integer("op", 0, "0: train ; 1:test ; 2:visualize ; 3:generate")
-flags.DEFINE_integer("generate_number", 1500, "the number of generate image epoch")
-flags.DEFINE_string("generate_path", "generate-images/mnist_new", "the path of generate images")  # 显示 
+flags.DEFINE_integer("generate_number", 500, "the number of generate image epoch")
+flags.DEFINE_string("generate_path", "generate-images/mnist", "the path of generate images")  # 显示 
 
 FLAGS = flags.FLAGS
 

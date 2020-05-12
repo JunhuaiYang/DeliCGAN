@@ -44,8 +44,8 @@ kernel_size = (3, 3)
 # 读取原始数据集  只读取测试集
 # the data, shuffled and split between train and test sets
 # 经过打乱和切分的训练与测试数据
-# (_, _), (X_test, y_test) = mnist.load_data()
-(_, _), (X_test, y_test) = fashion_mnist.load_data()
+(_, _), (X_test, y_test) = mnist.load_data()
+# (_, _), (X_test, y_test) = fashion_mnist.load_data()
 
 
 # 读取自己的数据集
@@ -55,15 +55,15 @@ fake_x = []
 fake_y = []
 
 # 读取当前目录下的所有文件
-# simple_path = 'datasets/mnist_part'
-simple_path = 'datasets/fashion-mnist_part'
+simple_path = 'datasets/mnist_part'
+# simple_path = 'datasets/fashion-mnist_part'
 for file in os.listdir(simple_path):
     simple_y.append(int(file.split('_')[0]))
     img = Image.open(simple_path+'/'+file).resize((28,28)).convert('L')
     simple_x.append(np.array(img))
 
-# fake_path = 'generate-images/mnist_new96'
-fake_path = 'generate-images/fashion_new96'
+fake_path = 'generate-images/mnist'
+# fake_path = 'generate-images/fashion'
 for file in os.listdir(fake_path):
     fake_y.append(int(file.split('_')[0]))
     img = Image.open(fake_path+'/'+file).resize((28,28)).convert('L')
